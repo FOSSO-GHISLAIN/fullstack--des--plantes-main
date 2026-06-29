@@ -5,7 +5,7 @@ const AppError = require('../../../shared/utils/app-error');
 const AI_PROVIDER = process.env.AI_PROVIDER || 'mock';
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent';
+const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
 class AiService {
   constructor() {
