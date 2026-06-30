@@ -4,13 +4,13 @@ const { publishUserRegistered, publishUserLoggedIn } = require('../events/auth.e
 const authService = new AuthService();
 
 const register = async (req, res, next) => {
-  const { email, password } = req.validated;
-  const user = await authService.register(email, password);
-  publishUserRegistered(user);
+  const { name, email, password } = req.validated;
+  const result = await authService.register(name, email, password);
+  publishUserRegistered(result.user);
   res.status(201).json({
     status: 'success',
     message: 'Utilisateur enregistré avec succès',
-    data: { user },
+    data: result,
   });
 };
 

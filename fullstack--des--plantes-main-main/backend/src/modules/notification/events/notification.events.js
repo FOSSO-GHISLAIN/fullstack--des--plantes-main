@@ -1,5 +1,5 @@
 const eventBus = require('../../../shared/events/event-bus');
-const { AUTH_EVENTS } = require('../../auth/events/auth.events.constants');
+const AUTH_EVENTS = require('../../auth/events/auth.events.constants');
 const { AI_EVENTS } = require('../../ai-analysis/events/ai.events');
 
 const registerNotificationEvents = () => {

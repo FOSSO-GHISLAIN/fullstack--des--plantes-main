@@ -4,7 +4,9 @@
   "description": "Backend modulaire pour application de suivi de croissance des plantes avec IA",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "seed": "node scripts/seed.js"
   },
   "keywords": [],
   "author": "",

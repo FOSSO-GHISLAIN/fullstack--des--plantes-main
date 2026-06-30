@@ -58,6 +58,17 @@ const createSickPlantSchema = z.object({
     .max(2000, 'Les notes ne peuvent pas dépasser 2000 caractères')
     .optional()
     .default(''),
+
+  photos: z
+    .array(
+      z.string().refine(
+        (val) => val.startsWith('data:image/jpeg') || val.startsWith('data:image/png'),
+        { message: 'Seules les images JPG et PNG sont acceptées' }
+      )
+    )
+    .max(2, 'Maximum 2 photos autorisées')
+    .optional()
+    .default([]),
 });
 
 // ─── Schéma de mise à jour ───────────────────────────────────────────────────
@@ -93,6 +104,16 @@ const updateSickPlantSchema = z
     location: z.string().max(200).optional(),
 
     notes: z.string().max(2000).optional(),
+
+    photos: z
+      .array(
+        z.string().refine(
+          (val) => val.startsWith('data:image/jpeg') || val.startsWith('data:image/png'),
+          { message: 'Seules les images JPG et PNG sont acceptées' }
+        )
+      )
+      .max(2, 'Maximum 2 photos autorisées')
+      .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Au moins un champ doit être fourni pour la mise à jour',

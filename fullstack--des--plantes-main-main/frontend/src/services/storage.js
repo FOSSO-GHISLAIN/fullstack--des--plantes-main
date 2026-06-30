@@ -1,5 +1,6 @@
 const PREFIX = 'plantes_app_';
 
+/** Stockage minimal de session JWT uniquement (pas de données applicatives). */
 export function getItem(key, fallback = null) {
   try {
     const raw = localStorage.getItem(PREFIX + key);
@@ -15,8 +16,4 @@ export function setItem(key, value) {
 
 export function removeItem(key) {
   localStorage.removeItem(PREFIX + key);
-}
-
-export function getUserKey(userId, suffix) {
-  return `${userId}_${suffix}`;
 }

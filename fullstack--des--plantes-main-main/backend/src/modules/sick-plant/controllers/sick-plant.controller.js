@@ -1,8 +1,10 @@
 const SickPlantService = require('../services/sick-plant.service');
+const AppNotificationService = require('../../notification/services/app-notification.service');
 const { publishSickPlantRegistered, publishSickPlantHealed } = require('../events/sick-plant.events');
 const AppError = require('../../../shared/utils/app-error');
 
 const sickPlantService = new SickPlantService();
+const appNotificationService = new AppNotificationService();
 
 /**
  * POST /api/sick-plants
@@ -120,6 +122,27 @@ const getSickPlantStats = async (req, res, next) => {
   });
 };
 
+/**
+ * POST /api/sick-plants/check-reminders
+ * Vérifie les plantes en traitement et envoie des rappels si nécessaire
+ */
+const checkTreatmentReminders = async (req, res, next) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return next(new AppError('Utilisateur non authentifié', 401));
+  }
+
+  const { remindersCreated } = await sickPlantService.checkTreatmentReminders(
+    userId,
+    appNotificationService
+  );
+
+  res.status(200).json({
+    status: 'success',
+    data: { remindersCreated },
+  });
+};
+
 module.exports = {
   createSickPlant,
   listSickPlants,
@@ -127,4 +150,5 @@ module.exports = {
   updateSickPlant,
   deleteSickPlant,
   getSickPlantStats,
+  checkTreatmentReminders,
 };

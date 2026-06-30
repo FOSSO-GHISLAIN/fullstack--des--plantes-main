@@ -4,6 +4,8 @@ const AppError = require('./shared/utils/app-error');
 const { authRouter, initAuthModule } = require('./modules/auth');
 const { monitoringRouter, initMonitoringModule } = require('./modules/monitoring');
 const { sickPlantRouter, initSickPlantModule } = require('./modules/sick-plant');
+const { plantRouter, initPlantModule } = require('./modules/plant');
+const { appNotificationRouter, initNotificationModule } = require('./modules/notification');
 
 const app = express();
 
@@ -14,17 +16,21 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── Initialisation des modules ───────────────────────────────────────────────
 initAuthModule();
 initMonitoringModule();
 initSickPlantModule();
+initPlantModule();
+initNotificationModule();
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', authRouter);
 app.use('/api', monitoringRouter);
+app.use('/api/plants', plantRouter);
+app.use('/api/notifications', appNotificationRouter);
 app.use('/api/sick-plants', sickPlantRouter);
 
 // Route de santé

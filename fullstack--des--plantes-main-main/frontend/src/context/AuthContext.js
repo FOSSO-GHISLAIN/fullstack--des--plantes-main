@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => {
     setLoading(true);
     try {
-      const session = authService.login(credentials);
+      const session = await authService.login(credentials);
       setUser(session);
       return session;
     } finally {
@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (data) => {
     setLoading(true);
     try {
-      const session = authService.register(data);
+      const session = await authService.register(data);
       setUser(session);
       return session;
     } finally {

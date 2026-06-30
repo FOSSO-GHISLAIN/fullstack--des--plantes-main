@@ -54,6 +54,18 @@ const sickPlantSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    photos: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (arr) => arr.length <= 2,
+        message: 'Maximum 2 photos autorisées',
+      },
+    },
+    lastReminderSent: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

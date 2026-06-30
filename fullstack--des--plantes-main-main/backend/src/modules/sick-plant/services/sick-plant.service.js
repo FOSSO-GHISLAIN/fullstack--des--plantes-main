@@ -27,6 +27,7 @@ class SickPlantService {
       treatmentStatus: payload.treatmentStatus || 'non_traité',
       location: payload.location || '',
       notes: payload.notes || '',
+      photos: payload.photos || [],
     };
 
     return this.repository.create(sickPlantData);
@@ -85,6 +86,12 @@ class SickPlantService {
       updateData.treatmentStatus = payload.treatmentStatus;
     if (payload.location !== undefined) updateData.location = payload.location;
     if (payload.notes !== undefined) updateData.notes = payload.notes;
+    if (payload.photos !== undefined) {
+      if (payload.photos.length > 2) {
+        throw new AppError('Maximum 2 photos autorisées', 400);
+      }
+      updateData.photos = payload.photos;
+    }
 
     const updated = await this.repository.update(sickPlantId, updateData);
     if (!updated) {
@@ -122,6 +129,43 @@ class SickPlantService {
       en_cours: all.filter((p) => p.treatmentStatus === 'en_cours').length,
       non_traité: all.filter((p) => p.treatmentStatus === 'non_traité').length,
     };
+  }
+
+  async checkTreatmentReminders(userId, notificationService) {
+    if (!userId) throw new AppError('Utilisateur non authentifié', 401);
+
+    const sickPlants = await this.repository.findByUserId(userId);
+    const now = new Date();
+    const remindersCreated = [];
+
+    for (const sp of sickPlants) {
+      // Ignorer les plantes guéries ou non traitées
+      if (sp.treatmentStatus !== 'en_cours') continue;
+
+      const lastReminder = sp.lastReminderSent ? new Date(sp.lastReminderSent) : null;
+      const daysSinceReminder = lastReminder
+        ? Math.floor((now - lastReminder) / (1000 * 60 * 60 * 24))
+        : null;
+
+      // Envoyer un rappel si : jamais envoyé OU dernier envoi > 3 jours
+      const shouldRemind = !lastReminder || daysSinceReminder >= 3;
+      if (!shouldRemind) continue;
+
+      const daysSinceDiagnosis = Math.floor(
+        (now - new Date(sp.diagnosisDate)) / (1000 * 60 * 60 * 24)
+      );
+
+      await notificationService.createNotification(userId, {
+        type: 'treatment',
+        title: `💊 Rappel traitement — ${sp.plantName}`,
+        message: `Votre plante "${sp.plantName}" est en traitement depuis ${daysSinceDiagnosis} jour(s). Pensez à vérifier son évolution et mettre à jour son statut.`,
+      });
+
+      await this.repository.update(sp._id, { lastReminderSent: now });
+      remindersCreated.push(sp.plantName);
+    }
+
+    return { remindersCreated };
   }
 }
 

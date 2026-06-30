@@ -13,14 +13,14 @@ export function showBrowserNotification(title, body) {
   }
 }
 
-export function syncNotificationsFromCalendar(userId, plants) {
+export async function syncNotificationsFromCalendar(plants) {
   const events = generateCalendarEvents(plants);
   const upcoming = getUpcomingEvents(events, 3);
   const today = new Date().toISOString().split('T')[0];
 
-  upcoming.forEach((event) => {
+  for (const event of upcoming) {
     if (event.date === today) {
-      addNotification(userId, {
+      await addNotification({
         type: event.type,
         title: event.title,
         message: event.description,
@@ -28,7 +28,7 @@ export function syncNotificationsFromCalendar(userId, plants) {
       });
       showBrowserNotification(event.title, event.description);
     }
-  });
+  }
 }
 
 export function getNotificationIcon(type) {
@@ -40,6 +40,7 @@ export function getNotificationIcon(type) {
     flowering: '🌸',
     disease: '⚠️',
     info: 'ℹ️',
+    growth: '📈',
   };
   return icons[type] || '🔔';
 }

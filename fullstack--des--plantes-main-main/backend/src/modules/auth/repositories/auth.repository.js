@@ -3,6 +3,11 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     email: {
       type: String,
       required: true,
@@ -50,8 +55,8 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 class AuthRepository {
-  async createUser(email, password) {
-    const user = new User({ email, password });
+  async createUser(name, email, password) {
+    const user = new User({ name, email, password });
     return await user.save();
   }
 

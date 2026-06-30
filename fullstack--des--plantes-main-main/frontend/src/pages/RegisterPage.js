@@ -77,7 +77,7 @@ export default function RegisterPage() {
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Min. 6 caractères"
+                  placeholder="Min. 8 car., maj., chiffre, spécial"
                   required
                 />
               </div>
@@ -100,7 +100,7 @@ export default function RegisterPage() {
             <p className="auth-switch">
               Déjà un compte ? <Link to="/">Se connecter</Link>
             </p>
-            <p className="auth-note">💾 Vos données sont stockées localement dans votre navigateur.</p>
+            <p className="auth-note">🗄️ Vos données sont stockées dans MongoDB via le backend.</p>
           </div>
         </div>
       </div>

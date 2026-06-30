@@ -7,17 +7,23 @@ class AuthService {
     this.repository = new AuthRepository();
   }
 
-  async register(email, password) {
+  async register(name, email, password) {
     const existingUser = await this.repository.findByEmail(email);
     if (existingUser) {
       throw new AppError('Cet email est déjà enregistré', 400);
     }
 
-    const user = await this.repository.createUser(email, password);
+    const user = await this.repository.createUser(name, email, password);
+    const tokens = this.generateTokens(user);
+
     return {
-      id: user._id,
-      email: user.email,
-      role: user.role,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      tokens,
     };
   }
 
@@ -38,6 +44,7 @@ class AuthService {
     return {
       user: {
         id: user._id,
+        name: user.name,
         email: user.email,
         role: user.role,
       },
@@ -48,13 +55,13 @@ class AuthService {
   generateTokens(user) {
     const accessToken = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '15m' }
+      process.env.JWT_SECRET || 'plantracker_jwt_secret_key_2024',
+      { expiresIn: '24h' }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+      process.env.JWT_REFRESH_SECRET || 'plantracker_refresh_secret_key_2024',
       { expiresIn: '7d' }
     );
 
@@ -65,7 +72,7 @@ class AuthService {
     try {
       const decoded = jwt.verify(
         refreshToken,
-        process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
+        process.env.JWT_REFRESH_SECRET || 'plantracker_refresh_secret_key_2024'
       );
 
       const user = await this.repository.findById(decoded.userId);
@@ -84,7 +91,7 @@ class AuthService {
     try {
       const decoded = jwt.verify(
         token,
-        process.env.JWT_SECRET || 'your-secret-key'
+        process.env.JWT_SECRET || 'plantracker_jwt_secret_key_2024'
       );
       return decoded;
     } catch (error) {

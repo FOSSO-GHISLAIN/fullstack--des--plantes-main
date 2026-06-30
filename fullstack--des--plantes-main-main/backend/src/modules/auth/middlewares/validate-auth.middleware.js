@@ -10,6 +10,7 @@ const passwordSchema = z
   .regex(/[!@#$%^&*]/, 'Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*)');
 
 const registerSchema = z.object({
+  name: z.string().min(1, 'Le nom est requis'),
   email: z.string().email('Email invalide'),
   password: passwordSchema,
   passwordConfirm: z.string(),
@@ -31,6 +32,7 @@ const validateRegister = (req, res, next) => {
   try {
     const validated = registerSchema.parse(req.body);
     req.validated = {
+      name: validated.name.trim(),
       email: validated.email,
       password: validated.password,
     };

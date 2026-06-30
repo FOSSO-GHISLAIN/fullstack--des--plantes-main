@@ -45,6 +45,7 @@ const INITIAL_SICK_FORM = {
   treatmentStatus: 'non_traité',
   location: '',
   notes: '',
+  photos: [],
 };
 
 export default function PlantManager() {
@@ -94,11 +95,12 @@ export default function PlantManager() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name) return alert('Le nom est requis.');
+    const trimmedName = form.name?.trim();
+    if (!trimmedName) return alert('Le nom est requis.');
     if (editPlant) {
-      updatePlant(editPlant.id, { ...form, height: Number(form.height), leafCount: Number(form.leafCount) });
+      updatePlant(editPlant.id, { ...form, name: trimmedName, height: Number(form.height) || 0, leafCount: Number(form.leafCount) || 0 });
     } else {
-      addPlant(form);
+      addPlant({ ...form, name: trimmedName });
     }
     resetForm();
   };
@@ -131,6 +133,55 @@ export default function PlantManager() {
     }));
   };
 
+  const handlePhotoUpload = (e) => {
+    const files = Array.from(e.target.files);
+    const remaining = 2 - sickForm.photos.length;
+    if (remaining <= 0) return;
+
+    const toRead = files.slice(0, remaining);
+    toRead.forEach((file) => {
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        alert('Seules les images JPG et PNG sont acceptées.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          // Redimensionner à max 800px en gardant le ratio
+          const MAX = 800;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+            else { width = Math.round((width * MAX) / height); height = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compression JPEG 70%
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setSickForm((f) => ({
+            ...f,
+            photos: [...f.photos, compressed].slice(0, 2),
+          }));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const removePhoto = (index) => {
+    setSickForm((f) => ({
+      ...f,
+      photos: f.photos.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSickSubmit = async (e) => {
     e.preventDefault();
     if (!sickForm.plantName.trim()) {
@@ -154,18 +205,25 @@ export default function PlantManager() {
 
       // Si le traitement est défini à guéri, déplacer/mettre à jour la plante dans le dashboard sain
       if (sickForm.treatmentStatus === 'guéri') {
-        const existingPlant = plants.find(
-          (p) => p.name.toLowerCase() === sickForm.plantName.toLowerCase()
-        );
-        if (existingPlant) {
-          updatePlant(existingPlant.id, { status: 'healthy' });
-        } else {
-          addPlant({
-            name: sickForm.plantName,
-            species: sickForm.species || sickForm.plantName,
-            type: sickForm.species || 'Autre',
-            status: 'healthy',
-          });
+        const plantName = sickForm.plantName?.trim();
+        if (plantName) {
+          const existingPlant = plants.find(
+            (p) => p.name.toLowerCase() === plantName.toLowerCase()
+          );
+          if (existingPlant) {
+            updatePlant(existingPlant.id, { status: 'healthy' });
+          } else {
+            addPlant({
+              name: plantName,
+              species: sickForm.species?.trim() || plantName,
+              type: sickForm.species?.trim() || 'Autre',
+              status: 'healthy',
+              height: 0,
+              leafCount: 0,
+              temperature: 22,
+              humidity: 60,
+            });
+          }
         }
       }
       resetSickForm();
@@ -190,6 +248,7 @@ export default function PlantManager() {
       treatmentStatus: sp.treatmentStatus || 'non_traité',
       location: sp.location || '',
       notes: sp.notes || '',
+      photos: sp.photos || [],
     });
     setShowSickForm(true);
   };
@@ -208,18 +267,25 @@ export default function PlantManager() {
       await editSickPlant(sp._id, { treatmentStatus: 'guéri' });
 
       // Déplacement automatique vers le dashboard des plantes saines
-      const existingPlant = plants.find(
-        (p) => p.name.toLowerCase() === sp.plantName.toLowerCase()
-      );
-      if (existingPlant) {
-        updatePlant(existingPlant.id, { status: 'healthy' });
-      } else {
-        addPlant({
-          name: sp.plantName,
-          species: sp.species || sp.plantName,
-          type: sp.species || 'Autre',
-          status: 'healthy',
-        });
+      const plantName = sp.plantName?.trim();
+      if (plantName) {
+        const existingPlant = plants.find(
+          (p) => p.name.toLowerCase() === plantName.toLowerCase()
+        );
+        if (existingPlant) {
+          updatePlant(existingPlant.id, { status: 'healthy' });
+        } else {
+          addPlant({
+            name: plantName,
+            species: sp.species?.trim() || plantName,
+            type: sp.species?.trim() || 'Autre',
+            status: 'healthy',
+            height: 0,
+            leafCount: 0,
+            temperature: 22,
+            humidity: 60,
+          });
+        }
       }
     } catch (err) {
       alert(err.message || 'Erreur lors de la mise à jour.');
@@ -492,6 +558,40 @@ export default function PlantManager() {
                   />
                 </div>
 
+                {/* Photos */}
+                <div className="form-row form-row-full">
+                  <label>📸 Photos des symptômes (max 2 — JPG/PNG)</label>
+                  {sickForm.photos.length < 2 && (
+                    <label className="photo-upload-btn">
+                      + Ajouter une photo
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        multiple
+                        style={{ display: 'none' }}
+                        onChange={handlePhotoUpload}
+                      />
+                    </label>
+                  )}
+                  {sickForm.photos.length > 0 && (
+                    <div className="photo-preview-row">
+                      {sickForm.photos.map((src, i) => (
+                        <div key={i} className="photo-preview-item">
+                          <img src={src} alt={`symptome-${i + 1}`} className="photo-preview-img" />
+                          <button
+                            type="button"
+                            className="photo-remove-btn"
+                            onClick={() => removePhoto(i)}
+                            title="Supprimer la photo"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
 
               <div className="modal-actions">
@@ -649,6 +749,25 @@ export default function PlantManager() {
                     <div className="sick-notes">
                       <strong>📝 Notes :</strong>
                       <p>{sp.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Photos */}
+                  {sp.photos && sp.photos.length > 0 && (
+                    <div className="sick-photos">
+                      <strong>📸 Photos :</strong>
+                      <div className="sick-photos-row">
+                        {sp.photos.map((src, i) => (
+                          <img
+                            key={i}
+                            src={src}
+                            alt={`symptome-${i + 1}`}
+                            className="sick-photo-thumb"
+                            onClick={() => window.open(src, '_blank')}
+                            title="Cliquer pour agrandir"
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
 

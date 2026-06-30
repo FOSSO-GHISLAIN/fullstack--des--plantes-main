@@ -1,60 +1,47 @@
 import { getItem, setItem, removeItem } from './storage';
+import { apiRequest } from './apiClient';
 
-const USERS_KEY = 'users';
 const SESSION_KEY = 'session';
 
-function hashPassword(password) {
-  let hash = 5381;
-  for (let i = 0; i < password.length; i += 1) {
-    hash = (hash * 33) ^ password.charCodeAt(i);
-  }
-  return `p_${Math.abs(hash).toString(36)}_${password.length}`;
+function buildSession(user, tokens) {
+  return {
+    id: user.id?.toString?.() || user.id,
+    name: user.name || user.email?.split('@')[0] || 'Utilisateur',
+    email: user.email,
+    token: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    loginAt: new Date().toISOString(),
+  };
 }
 
-export function register({ name, email, password, confirmPassword }) {
+export async function register({ name, email, password, confirmPassword }) {
   if (!name?.trim()) throw new Error('Le nom est requis.');
   if (!email?.trim()) throw new Error("L'email est requis.");
-  if (password.length < 6) throw new Error('Mot de passe minimum 6 caractères.');
+  if (password.length < 8) throw new Error('Mot de passe minimum 8 caractères.');
   if (password !== confirmPassword) throw new Error('Les mots de passe ne correspondent pas.');
 
-  const users = getItem(USERS_KEY, []);
-  const normalizedEmail = email.trim().toLowerCase();
+  const response = await apiRequest('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: name.trim(),
+      email: email.trim(),
+      password,
+      passwordConfirm: confirmPassword,
+    }),
+  });
 
-  if (users.some((u) => u.email === normalizedEmail)) {
-    throw new Error('Cet email est déjà utilisé.');
-  }
-
-  const user = {
-    id: `user_${Date.now()}`,
-    name: name.trim(),
-    email: normalizedEmail,
-    password: hashPassword(password),
-    createdAt: new Date().toISOString(),
-  };
-
-  users.push(user);
-  setItem(USERS_KEY, users);
-
-  const session = { id: user.id, name: user.name, email: user.email };
+  const session = buildSession(response.data.user, response.data.tokens);
   setItem(SESSION_KEY, session);
   return session;
 }
 
-export function login({ email, password }) {
-  const users = getItem(USERS_KEY, []);
-  const normalizedEmail = email.trim().toLowerCase();
-  const user = users.find(
-    (u) => u.email === normalizedEmail && u.password === hashPassword(password)
-  );
+export async function login({ email, password }) {
+  const response = await apiRequest('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim(), password }),
+  });
 
-  if (!user) throw new Error('Email ou mot de passe incorrect.');
-
-  const session = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    loginAt: new Date().toISOString(),
-  };
+  const session = buildSession(response.data.user, response.data.tokens);
   setItem(SESSION_KEY, session);
   return session;
 }
@@ -67,6 +54,10 @@ export function getSession() {
   return getItem(SESSION_KEY, null);
 }
 
+export function getToken() {
+  return getSession()?.token || null;
+}
+
 export function isAuthenticated() {
-  return Boolean(getSession());
+  return Boolean(getToken());
 }

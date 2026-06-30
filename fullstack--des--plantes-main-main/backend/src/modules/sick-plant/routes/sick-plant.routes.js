@@ -7,6 +7,7 @@ const {
   updateSickPlant,
   deleteSickPlant,
   getSickPlantStats,
+  checkTreatmentReminders,
 } = require('../controllers/sick-plant.controller');
 const {
   validateCreateSickPlant,
@@ -24,6 +25,9 @@ router.use(authenticate);
 // ─── Routes ──────────────────────────────────────────────────────────────────
 // GET  /api/sick-plants/stats  — statistiques (avant /:id pour éviter les conflits)
 router.get('/stats', asyncHandler(getSickPlantStats));
+
+// POST /api/sick-plants/check-reminders — vérifier et envoyer les rappels de traitement
+router.post('/check-reminders', asyncHandler(checkTreatmentReminders));
 
 // POST /api/sick-plants        — créer une fiche
 router.post('/', validateCreateSickPlant, asyncHandler(createSickPlant));

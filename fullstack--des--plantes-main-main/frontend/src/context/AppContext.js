@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import * as plantService from '../services/plantService';
+import { getToken } from '../services/authService';
 import { generateCalendarEvents } from '../services/calendarService';
 import { syncNotificationsFromCalendar } from '../services/notificationService';
 import * as sickPlantApi from '../services/sickPlantApiService';
@@ -13,40 +14,24 @@ export function AppProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [selectedPlantId, setSelectedPlantId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // ─── État des plantes malades ─────────────────────────────────────────────
   const [sickPlants, setSickPlants] = useState([]);
   const [sickPlantsLoading, setSickPlantsLoading] = useState(false);
   const [sickPlantsError, setSickPlantsError] = useState(null);
   const [apiOnline, setApiOnline] = useState(false);
 
-  // ─── Récupérer le token JWT depuis le localStorage ────────────────────────
-  const getToken = useCallback(() => {
-    try {
-      const session = JSON.parse(
-        localStorage.getItem('plantes_app_session') || 'null'
-      );
-      return session?.token || null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // ─── Vérifier la disponibilité de l'API ──────────────────────────────────
   useEffect(() => {
     sickPlantApi.checkApiHealth().then(({ online }) => {
       setApiOnline(online);
     });
   }, []);
 
-  // ─── Chargement des plantes malades depuis le backend ────────────────────
   const refreshSickPlants = useCallback(async () => {
-    if (!user) return;
     const token = getToken();
-    if (!token) {
-      // Pas de token JWT → mode localStorage uniquement
-      return;
-    }
+    if (!user || !token) return;
+
     setSickPlantsLoading(true);
     setSickPlantsError(null);
     try {
@@ -57,117 +42,123 @@ export function AppProvider({ children }) {
     } finally {
       setSickPlantsLoading(false);
     }
-  }, [user, getToken]);
+  }, [user]);
 
-  // ─── Plantes saines — refresh ─────────────────────────────────────────────
-  const refresh = useCallback(() => {
-    if (!user) return;
-    plantService.applyAutomaticDailyGrowth(user.id);
-    setPlants(plantService.getPlants(user.id));
-    setNotifications(plantService.getNotifications(user.id));
+  const refresh = useCallback(async () => {
+    const token = getToken();
+    if (!user || !token) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await plantService.applyAutomaticDailyGrowth();
+      // Vérifier les rappels de traitement des plantes malades
+      await sickPlantApi.checkTreatmentReminders(token).catch(() => {});
+      const [plantsData, notificationsData] = await Promise.all([
+        plantService.getPlants(),
+        plantService.getNotifications(),
+      ]);
+      setPlants(plantsData);
+      setNotifications(notificationsData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      plantService.applyAutomaticDailyGrowth(user.id);
-      setPlants(plantService.getPlants(user.id));
-      setNotifications(plantService.getNotifications(user.id));
-    }, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [user]);
+    refreshSickPlants();
+  }, [refresh, refreshSickPlants]);
 
   useEffect(() => {
     if (!user || plants.length === 0) return;
-    syncNotificationsFromCalendar(user.id, plants);
-    setNotifications(plantService.getNotifications(user.id));
+
+    syncNotificationsFromCalendar(plants)
+      .then(() => plantService.getNotifications())
+      .then(setNotifications)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, plants.length]);
 
-  // Charger les plantes malades au démarrage
-  useEffect(() => {
-    if (user) {
-      refreshSickPlants();
-    }
-  }, [user, refreshSickPlants]);
-
-  // ─── Actions sur les plantes saines ──────────────────────────────────────
   const addPlant = useCallback(
-    (data) => {
+    async (data) => {
       if (!user) return null;
-      const plant = plantService.addPlant(user.id, data);
-      refresh();
-      return plant;
+      try {
+        const plant = await plantService.addPlant(data);
+        await refresh();
+        return plant;
+      } catch (err) {
+        setError(err.message);
+        throw err;
+      }
     },
     [user, refresh]
   );
 
   const updatePlant = useCallback(
-    (plantId, updates) => {
+    async (plantId, updates) => {
       if (!user) return;
-      plantService.updatePlant(user.id, plantId, updates);
-      refresh();
+      try {
+        await plantService.updatePlant(plantId, updates);
+        await refresh();
+      } catch (err) {
+        setError(err.message);
+        throw err;
+      }
     },
     [user, refresh]
   );
 
   const addGrowthEntry = useCallback(
-    (plantId, entry) => {
+    async (plantId, entry) => {
       if (!user) return;
-      plantService.addGrowthEntry(user.id, plantId, entry);
-      refresh();
+      try {
+        await plantService.addGrowthEntry(plantId, entry);
+        await refresh();
+      } catch (err) {
+        setError(err.message);
+        throw err;
+      }
     },
     [user, refresh]
   );
 
   const deletePlant = useCallback(
-    (plantId) => {
+    async (plantId) => {
       if (!user) return;
-      plantService.deletePlant(user.id, plantId);
-      refresh();
+      try {
+        await plantService.deletePlant(plantId);
+        await refresh();
+      } catch (err) {
+        setError(err.message);
+        throw err;
+      }
     },
     [user, refresh]
   );
 
   const markRead = useCallback(
-    (notifId) => {
+    async (notifId) => {
       if (!user) return;
-      plantService.markNotificationRead(user.id, notifId);
-      refresh();
+      try {
+        await plantService.markNotificationRead(notifId);
+        await refresh();
+      } catch (err) {
+        setError(err.message);
+        throw err;
+      }
     },
     [user, refresh]
   );
 
-  // ─── Actions sur les plantes malades ─────────────────────────────────────
-
-  /**
-   * Ajouter une plante malade (via API backend → MongoDB)
-   */
   const addSickPlant = useCallback(
     async (data) => {
-      if (!user) return null;
-      setSickPlantsError(null);
-
       const token = getToken();
-      if (!token) {
-        // Mode dégradé : stockage local si pas de token
-        const localEntry = {
-          _id: `local_${Date.now()}`,
-          ...data,
-          userId: user.id,
-          createdAt: new Date().toISOString(),
-          treatmentStatus: data.treatmentStatus || 'non_traité',
-          severity: data.severity || 'modérée',
-          isLocal: true,
-        };
-        setSickPlants((prev) => [localEntry, ...prev]);
-        return localEntry;
-      }
+      if (!user || !token) throw new Error('Session expirée, veuillez vous reconnecter.');
 
+      setSickPlantsError(null);
       try {
         const response = await sickPlantApi.createSickPlant(data, token);
         setSickPlants((prev) => [response.data, ...prev]);
@@ -177,26 +168,15 @@ export function AppProvider({ children }) {
         throw err;
       }
     },
-    [user, getToken]
+    [user]
   );
 
-  /**
-   * Mettre à jour une fiche plante malade
-   */
   const editSickPlant = useCallback(
     async (id, data) => {
-      if (!user) return;
-      setSickPlantsError(null);
-
       const token = getToken();
-      if (!token) {
-        // Mode dégradé : mise à jour locale
-        setSickPlants((prev) =>
-          prev.map((sp) => (sp._id === id ? { ...sp, ...data } : sp))
-        );
-        return;
-      }
+      if (!user || !token) throw new Error('Session expirée, veuillez vous reconnecter.');
 
+      setSickPlantsError(null);
       try {
         const response = await sickPlantApi.updateSickPlant(id, data, token);
         setSickPlants((prev) =>
@@ -208,23 +188,15 @@ export function AppProvider({ children }) {
         throw err;
       }
     },
-    [user, getToken]
+    [user]
   );
 
-  /**
-   * Supprimer une fiche plante malade
-   */
   const removeSickPlant = useCallback(
     async (id) => {
-      if (!user) return;
-      setSickPlantsError(null);
-
       const token = getToken();
-      if (!token) {
-        setSickPlants((prev) => prev.filter((sp) => sp._id !== id));
-        return;
-      }
+      if (!user || !token) throw new Error('Session expirée, veuillez vous reconnecter.');
 
+      setSickPlantsError(null);
       try {
         await sickPlantApi.deleteSickPlant(id, token);
         setSickPlants((prev) => prev.filter((sp) => sp._id !== id));
@@ -233,10 +205,9 @@ export function AppProvider({ children }) {
         throw err;
       }
     },
-    [user, getToken]
+    [user]
   );
 
-  // ─── Computed values ──────────────────────────────────────────────────────
   const calendarEvents = user ? generateCalendarEvents(plants) : [];
   const selectedPlant = plants.find((p) => p.id === selectedPlantId) || null;
   const stats = plantService.getPlantStats(plants);
@@ -252,7 +223,6 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider
       value={{
-        // Plantes saines
         plants,
         notifications,
         stats,
@@ -269,7 +239,8 @@ export function AppProvider({ children }) {
         markRead,
         refresh,
         unreadCount,
-        // Plantes malades
+        loading,
+        error,
         sickPlants,
         sickPlantsLoading,
         sickPlantsError,
